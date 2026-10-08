@@ -38,14 +38,14 @@ curl() {
     done
     printf '%s\n' "$url" >> "$DOWNLOADS"
     case "$url" in
-        https://api.github.com/repos/R1ddle1337/komari/releases/latest)
+        https://api.github.com/repos/wugan666/komari/releases/latest)
             [ "$MODE" != api_failure ] || return 22
             printf '{"tag_name":"%s"}\n' "$RELEASE_TAG"
             ;;
-        'https://api.github.com/repos/R1ddle1337/komari/releases?per_page=100')
+        'https://api.github.com/repos/wugan666/komari/releases?per_page=100')
             printf '[{"tag_name":"1.5.1"},{"tag_name":"Snapshot-260922010000-123-1"}]\n'
             ;;
-        https://github.com/R1ddle1337/komari/releases/download/*/komari-linux-amd64.sha256)
+        https://github.com/wugan666/komari/releases/download/*/komari-linux-amd64.sha256)
             [ "$MODE" != missing_checksum ] || return 22
             case "$MODE" in
                 bad_checksum) printf '%064d  komari-linux-amd64\n' 0 > "$output" ;;
@@ -55,7 +55,7 @@ curl() {
                 *) printf '%s  komari-linux-amd64\n' "$EXPECTED_HASH" > "$output" ;;
             esac
             ;;
-        https://github.com/R1ddle1337/komari/releases/download/*/komari-linux-amd64)
+        https://github.com/wugan666/komari/releases/download/*/komari-linux-amd64)
             if [ "$head_request" -eq 1 ]; then
                 printf 'Content-Length: %s\n' "${#NEW_BINARY}"
             else
@@ -154,7 +154,7 @@ done
 prepare_case snapshot
 CHANNEL=snapshot
 snapshot_url=$(get_download_url amd64)
-[ "$snapshot_url" = 'https://github.com/R1ddle1337/komari/releases/download/Snapshot-260922010000-123-1/komari-linux-amd64' ]
+[ "$snapshot_url" = 'https://github.com/wugan666/komari/releases/download/Snapshot-260922010000-123-1/komari-linux-amd64' ]
 CHANNEL=stable
 RELEASE_TAG='../other-release'
 if get_download_url amd64 >/dev/null; then printf 'Unsafe release tag accepted\n' >&2; exit 1; fi

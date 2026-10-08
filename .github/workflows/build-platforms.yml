@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   frontend:
-    if: github.repository == 'R1ddle1337/komari'
+    if: github.repository == 'wugan666/komari'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

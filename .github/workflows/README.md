@@ -6,8 +6,8 @@
 
 ## 来源与构建
 
-- 后端：当前 `R1ddle1337/komari` 的已审核 `owned` commit。
-- 前端：`build-frontend/action.yml` 中固定的 `R1ddle1337/komari-web` 40 位 commit。
+- 后端：当前 `wugan666/komari` 的已审核 `owned` commit。
+- 前端：`build-frontend/action.yml` 中固定的 `wugan666/komari-web` 40 位 commit。
 - 前端使用 Node `22.23.2`，只执行 `npm ci`，不更新锁文件、不读取浮动分支。
 - 后端使用 Go `1.26.8`、`GOTOOLCHAIN=local`、`-mod=readonly`、`go mod verify`。
 - CGO 使用 Zig `0.14.1`，下载后验证固定官方 SHA-256，不复用可污染的工具链缓存。
@@ -24,8 +24,8 @@ Windows amd64/arm64/386。Linux 用 musl 静态链接，Windows 用 windows-gnu�
 `release.yml` 和 `snapshot.yml` 仅手动启动，且必须选择 `owned`：
 
 ```sh
-gh workflow run release.yml --repo R1ddle1337/komari --ref owned -f version=1.5.1
-gh workflow run snapshot.yml --repo R1ddle1337/komari --ref owned
+gh workflow run release.yml --repo wugan666/komari --ref owned -f version=1.5.1
+gh workflow run snapshot.yml --repo wugan666/komari --ref owned
 ```
 
 流程：验证 owned 当前 commit → 构建固定前端 → 独立测试 →
@@ -49,7 +49,7 @@ gh workflow run snapshot.yml --repo R1ddle1337/komari --ref owned
 
 ## 镜像与迁移边界
 
-镜像地址 `ghcr.io/r1ddle1337/komari`，提供 linux/amd64 和 linux/arm64。
+镜像地址 `ghcr.io/wugan666/komari`，提供 linux/amd64 和 linux/arm64。
 稳定发布带版本和 latest 标签；快照带唯一版本和 snapshot 标签。
 生产部署建议固定版本及 digest，保留现有数据挂载、数据库和启动参数。
 

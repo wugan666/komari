@@ -56,7 +56,7 @@ BACKUP_DIR="$INSTALL_DIR/backup"
 DATA_BACKUP_DIR="$DATA_DIR/data/backup"
 DEFAULT_PORT="25774"
 LISTEN_PORT=""
-STANDARD_REPO="R1ddle1337/komari"
+STANDARD_REPO="wugan666/komari"
 REPO="$STANDARD_REPO"
 # 自有仓库仅发布标准版，不引入其他发行者的下载源。
 EDITION="standard"

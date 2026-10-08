@@ -1,6 +1,6 @@
 # Komari
 
-This fork is maintained and released by **R1ddle1337**, incorporating all changes
+This fork is maintained and released by **wugan666**, incorporating all changes
 through upstream `main@7d692d2`. Backend, frontend and Agent builds use owner-controlled source.
 The maintained branch is `owned`; see [OWNED.md](OWNED.md).
 
