@@ -152,22 +152,25 @@ func getNodesLatestStatus(ctx context.Context, req *rpc.JsonRpcRequest) (any, *r
 		onlineSet[uuid] = true
 	}
 
-	// Hidden 过滤
-	if meta.Principal == nil || !meta.Principal.HasRole(rpc.RoleAdmin) {
-		cinfo, err := clients.GetAllClientBasicInfo()
-		if err != nil {
-			return nil, rpc.MakeError(rpc.InternalError, "Failed to get client info", err.Error())
+	// Persisted presence survives restarts and metric retention. Never synthesize
+	// an online connection or a historical measurement from this timestamp.
+	cinfo, err := clients.GetAllClientBasicInfo()
+	if err != nil {
+		return nil, rpc.MakeError(rpc.InternalError, "Failed to get client info", err.Error())
+	}
+	visible := make(map[string]bool, len(cinfo))
+	for _, c := range cinfo {
+		if c.Hidden && (meta == nil || meta.Principal == nil || !meta.Principal.HasRole(rpc.RoleAdmin)) {
+			continue
 		}
-		hidden := make(map[string]bool, len(cinfo))
-		for _, c := range cinfo {
-			if c.Hidden {
-				hidden[c.UUID] = true
-			}
+		visible[c.UUID] = true
+		if latest[c.UUID] == nil && c.LastSeenAt != nil {
+			latest[c.UUID] = &v2.Report{UUID: c.UUID, UpdatedAt: *c.LastSeenAt}
 		}
-		for uuid := range latest {
-			if hidden[uuid] {
-				delete(latest, uuid)
-			}
+	}
+	for uuid := range latest {
+		if !visible[uuid] {
+			delete(latest, uuid)
 		}
 	}
 

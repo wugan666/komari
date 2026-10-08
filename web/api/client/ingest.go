@@ -23,6 +23,10 @@ func ingestReport(uuid string, report v2.Report, markPresence bool) error {
 	if err := clients.ReportVerify(report); err != nil {
 		return err
 	}
+	// Persist contact before metric ingestion so a retry cannot duplicate accepted metrics.
+	if err := clients.RecordLastSeen(uuid, report.UpdatedAt); err != nil {
+		return err
+	}
 	savedReport, err := metricstore.WriteReport(context.Background(), report)
 	if err != nil {
 		return err

@@ -386,3 +386,14 @@ func (b *rollupBucket) value(agg Aggregation) (float64, bool) {
 		return 0, false
 	}
 }
+
+// retentionDuration represents unlimited history internally without changing
+// the configured finite retention of the finer rollup tiers.
+const unlimitedRetention = time.Duration(1<<63 - 1)
+
+func retentionDuration(days int) time.Duration {
+	if days == -1 || days > int(unlimitedRetention/(24*time.Hour)) {
+		return unlimitedRetention
+	}
+	return time.Duration(days) * 24 * time.Hour
+}

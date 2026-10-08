@@ -191,8 +191,12 @@ func TestCreateMetricDefinitionsUsesExplicitRetentionAndPreservesOverrides(t *te
 		t.Fatalf("definition count = %d, want 21", len(defs))
 	}
 	for _, def := range defs {
-		if def.RetentionDays != defaultBuiltinMetricRetentionDays {
-			t.Fatalf("%s retention = %d, want %d", def.Name, def.RetentionDays, defaultBuiltinMetricRetentionDays)
+		want := defaultBuiltinMetricRetentionDays
+		if def.Name == MetricPingLatency || def.Name == MetricPingLoss {
+			want = -1
+		}
+		if def.RetentionDays != want {
+			t.Fatalf("%s retention = %d, want %d", def.Name, def.RetentionDays, want)
 		}
 	}
 
@@ -277,7 +281,11 @@ func TestCreateMetricDefinitionsUsesLegacySpanOnlyForNewDefinitions(t *testing.T
 		t.Fatalf("list migration definitions: %v", err)
 	}
 	for _, def := range defs {
-		if def.RetentionDays != 10 {
+		want := 10
+		if def.Name == MetricPingLatency || def.Name == MetricPingLoss {
+			want = -1
+		}
+		if def.RetentionDays != want {
 			t.Fatalf("%s retention = %d, want legacy span 10", def.Name, def.RetentionDays)
 		}
 	}
@@ -478,5 +486,45 @@ func TestRetentionCleanupReportsDeleteFailure(t *testing.T) {
 	}
 	if len(points) != 0 {
 		t.Fatalf("retention cleanup unexpectedly changed healthy metric data: %#v", points)
+	}
+}
+
+func TestPingPermanentMigrationRunsOnce(t *testing.T) {
+	ctx := context.Background()
+	s, err := metric.Open(ctx, metric.SQLite(":memory:"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	for _, name := range []string{MetricPingLatency, MetricPingLoss} {
+		if err := s.CreateMetric(ctx, metric.Definition{Name: name, Type: metric.TypeGauge, RetentionDays: 1}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := createMetricDefinitions(ctx, s); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{MetricPingLatency, MetricPingLoss} {
+		def, _ := s.GetMetric(ctx, name)
+		if def.RetentionDays != -1 {
+			t.Fatal(def)
+		}
+	}
+	if _, err := s.UpdateMetricRetention(ctx, MetricPingLatency, 365); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.UpdateMetricRetention(ctx, MetricPingLoss, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := createMetricDefinitions(ctx, s); err != nil {
+		t.Fatal(err)
+	}
+	def, _ := s.GetMetric(ctx, MetricPingLatency)
+	if def.RetentionDays != 365 {
+		t.Fatal("reset administrator policy")
+	}
+	def, _ = s.GetMetric(ctx, MetricPingLoss)
+	if def.RetentionDays != 0 {
+		t.Fatal("re-enabled disabled metric")
 	}
 }

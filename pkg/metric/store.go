@@ -614,8 +614,7 @@ func (s *Store) DeleteMetric(ctx context.Context, name string) error {
 }
 
 // UpdateMetricRetention updates one metric's retention policy without deleting
-// its existing data. A value of zero disables subsequent persistence. Negative
-// values are invalid.
+// its existing data. Zero disables persistence; -1 retains history indefinitely.
 func (s *Store) UpdateMetricRetention(ctx context.Context, name string, retentionDays int) (Definition, error) {
 	if err := s.ensureOpen(); err != nil {
 		return Definition{}, err
@@ -624,8 +623,8 @@ func (s *Store) UpdateMetricRetention(ctx context.Context, name string, retentio
 	if name == "" {
 		return Definition{}, fmt.Errorf("%w: metric name is required", ErrInvalidArgument)
 	}
-	if retentionDays < 0 {
-		return Definition{}, fmt.Errorf("%w: retention days cannot be negative", ErrInvalidArgument)
+	if retentionDays < -1 {
+		return Definition{}, fmt.Errorf("%w: retention days must be -1 (forever), zero (disabled), or positive", ErrInvalidArgument)
 	}
 
 	s.retentionMu.Lock()
@@ -661,7 +660,7 @@ func (s *Store) UpdateMetricRetention(ctx context.Context, name string, retentio
 
 // SetMetricRetention updates one metric's retention policy. A value of zero
 // disables persistence for that metric and removes its raw and rollup data.
-// Negative values are invalid.
+// A value of -1 retains history indefinitely.
 func (s *Store) SetMetricRetention(ctx context.Context, name string, retentionDays int) (Definition, error) {
 	if err := s.ensureOpen(); err != nil {
 		return Definition{}, err
@@ -670,8 +669,8 @@ func (s *Store) SetMetricRetention(ctx context.Context, name string, retentionDa
 	if name == "" {
 		return Definition{}, fmt.Errorf("%w: metric name is required", ErrInvalidArgument)
 	}
-	if retentionDays < 0 {
-		return Definition{}, fmt.Errorf("%w: retention days cannot be negative", ErrInvalidArgument)
+	if retentionDays < -1 {
+		return Definition{}, fmt.Errorf("%w: retention days must be -1 (forever), zero (disabled), or positive", ErrInvalidArgument)
 	}
 
 	s.retentionMu.Lock()
@@ -919,7 +918,7 @@ func (s *Store) filterDisabledMetricPoints(ctx context.Context, points []Point) 
 		if !ok {
 			return nil, fmt.Errorf("%w: metric %q", ErrNotFound, point.MetricName)
 		}
-		if def.RetentionDays > 0 {
+		if def.RetentionDays != 0 {
 			filtered = append(filtered, point)
 		}
 	}
@@ -1275,7 +1274,7 @@ func (s *Store) CleanupExpired(ctx context.Context, now time.Time) (int64, error
 			disabled = append(disabled, def.Name)
 			continue
 		}
-		policy := s.cfg.RollupPolicy.withMetricRetention(time.Duration(def.RetentionDays) * 24 * time.Hour)
+		policy := s.cfg.RollupPolicy.withMetricRetention(retentionDuration(def.RetentionDays))
 		retained := make(map[time.Duration]time.Duration, len(policy.Tiers))
 		for _, tier := range policy.Tiers {
 			retained[tier.Interval] = tier.Retention
@@ -1285,6 +1284,9 @@ func (s *Store) CleanupExpired(ctx context.Context, now time.Time) (int64, error
 			if !keep {
 				key := cleanupGroupKey{interval: tier.Interval, all: true}
 				groups[key] = append(groups[key], def.Name)
+				continue
+			}
+			if retention == unlimitedRetention {
 				continue
 			}
 			before := bucketStartMillis(now.Add(-retention).UnixMilli(), tier.Interval.Milliseconds())

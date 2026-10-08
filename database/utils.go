@@ -96,7 +96,9 @@ func GetPublicInfo() (map[string]interface{}, error) {
 		"cors_origin_check_enabled": cst.CorsOriginCheckEnabled,
 		"record_enabled":            retention.AllPositive, // 兼容旧版本主题
 		"record_preserve_time":      retention.MaxDays * 24,
-		"ping_record_preserve_time": retention.MaxDays * 24,
+		"ping_record_preserve_time": pingRetentionHours(retention.PingDays),
+		"ping_record_enabled":       retention.PingEnabled,
+		"ping_record_permanent":     retention.PingDays == -1,
 		"private_site":              cst.PrivateSite,
 		"theme":                     cst.Theme,
 		"theme_settings":            tc_data,
@@ -117,4 +119,13 @@ func themeConfigurationItems(short string) []models.ManagedThemeConfigurationIte
 		}
 	}
 	return managedconfig.Items(manifest.Configuration)
+}
+
+// Old themes expect a finite positive picker window. Permanent history is
+// explicitly advertised separately and can be queried for any past date.
+func pingRetentionHours(days int) int {
+	if days == -1 {
+		return 365 * 24
+	}
+	return days * 24
 }

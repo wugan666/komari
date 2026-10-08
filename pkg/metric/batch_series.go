@@ -126,10 +126,10 @@ func (s *Store) seriesBatchAt(ctx context.Context, query BatchSeriesQuery, now t
 
 		policy := s.cfg.RollupPolicy
 		if definition, ok := definitions[spec.MetricName]; ok {
-			if definition.RetentionDays <= 0 {
+			if definition.RetentionDays == 0 {
 				continue
 			}
-			policy = policy.withMetricRetention(time.Duration(definition.RetentionDays) * 24 * time.Hour)
+			policy = policy.withMetricRetention(retentionDuration(definition.RetentionDays))
 		}
 		if len(policy.Tiers) == 0 {
 			continue

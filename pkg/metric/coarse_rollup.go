@@ -337,10 +337,10 @@ func (s *Store) metricRollupPolicyTx(ctx context.Context, metricName string, tx 
 	if err != nil {
 		return RollupPolicy{}, err
 	}
-	if retentionDays <= 0 {
+	if retentionDays == 0 {
 		return RollupPolicy{}, nil
 	}
-	return s.cfg.RollupPolicy.withMetricRetention(time.Duration(retentionDays) * 24 * time.Hour), nil
+	return s.cfg.RollupPolicy.withMetricRetention(retentionDuration(retentionDays)), nil
 }
 
 func (s *Store) metricRollupPolicy(ctx context.Context, metricName string) (RollupPolicy, error) {
@@ -354,10 +354,10 @@ func (s *Store) metricRollupPolicy(ctx context.Context, metricName string) (Roll
 	if err != nil {
 		return RollupPolicy{}, err
 	}
-	if retentionDays <= 0 {
+	if retentionDays == 0 {
 		return RollupPolicy{}, nil
 	}
-	return s.cfg.RollupPolicy.withMetricRetention(time.Duration(retentionDays) * 24 * time.Hour), nil
+	return s.cfg.RollupPolicy.withMetricRetention(retentionDuration(retentionDays)), nil
 }
 
 func (s *Store) deleteCoarseRollups(metricName string) {

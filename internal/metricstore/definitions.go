@@ -14,6 +14,8 @@ const defaultBuiltinMetricRetentionDays = 1
 type RetentionSummary struct {
 	AllPositive bool
 	MaxDays     int
+	PingDays    int
+	PingEnabled bool
 }
 
 // GetRetentionSummary aggregates the active store's metric definitions. An
@@ -36,8 +38,12 @@ func summarizeRetentionDefinitions(defs []metric.Definition) RetentionSummary {
 	}
 	summary := RetentionSummary{AllPositive: true}
 	for _, def := range defs {
-		if def.RetentionDays <= 0 {
+		if def.RetentionDays == 0 {
 			summary.AllPositive = false
+		}
+		if def.Name == MetricPingLatency {
+			summary.PingDays = def.RetentionDays
+			summary.PingEnabled = def.RetentionDays != 0
 		}
 		if def.RetentionDays > summary.MaxDays {
 			summary.MaxDays = def.RetentionDays
@@ -86,6 +92,10 @@ func createMetricDefinitionsWithDefaultRetention(ctx context.Context, s *metric.
 	}
 
 	for _, def := range definitions {
+		isPing := def.Name == MetricPingLatency || def.Name == MetricPingLoss
+		if isPing {
+			def.RetentionDays = -1
+		}
 		existing, err := s.GetMetric(ctx, def.Name)
 		if err != nil && !errors.Is(err, metric.ErrNotFound) {
 			return fmt.Errorf("failed to get metric %s: %w", def.Name, err)
@@ -95,6 +105,16 @@ func createMetricDefinitionsWithDefaultRetention(ctx context.Context, s *metric.
 				continue
 			}
 			def.RetentionDays = existing.RetentionDays
+			def.Metadata = existing.Metadata
+			if isPing && existing.Metadata["long_term_history_v1"] != "true" {
+				def.RetentionDays = -1
+			}
+		}
+		if isPing {
+			if def.Metadata == nil {
+				def.Metadata = map[string]string{}
+			}
+			def.Metadata["long_term_history_v1"] = "true"
 		}
 		if err := s.UpsertMetric(ctx, def); err != nil {
 			return fmt.Errorf("failed to create metric %s: %w", def.Name, err)

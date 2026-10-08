@@ -95,8 +95,8 @@ func adminUpdateMetricDefinition(ctx context.Context, req *rpc.JsonRpcRequest) (
 	if params.Name == "" {
 		return nil, rpc.MakeError(rpc.InvalidParams, "name is required", nil)
 	}
-	if params.RetentionDays < 0 {
-		return nil, rpc.MakeError(rpc.InvalidParams, "retention_days must be a non-negative integer", nil)
+	if params.RetentionDays < -1 {
+		return nil, rpc.MakeError(rpc.InvalidParams, "retention_days must be -1 (forever), zero (disabled), or a positive integer", nil)
 	}
 	store := metricstore.GetStore()
 	if store == nil {

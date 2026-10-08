@@ -147,6 +147,7 @@ type Definition struct {
 	// of zero disables persistence and removes existing metric data.
 	//
 	// RetentionDays 控制该指标历史数据的保留天数；零表示禁用持久化并清除已有数据。
+	// -1 retains the coarsest history indefinitely; zero still disables recording.
 	RetentionDays int `json:"retention_days,omitempty"`
 	// Metadata stores caller-defined metric metadata.
 	//
@@ -184,8 +185,8 @@ func (d Definition) Validate() error {
 	default:
 		return fmt.Errorf("%w: unsupported metric type %q", ErrInvalidArgument, d.Type)
 	}
-	if d.RetentionDays < 0 {
-		return fmt.Errorf("%w: retention days cannot be negative", ErrInvalidArgument)
+	if d.RetentionDays < -1 {
+		return fmt.Errorf("%w: retention days must be -1 (forever), zero (disabled), or positive", ErrInvalidArgument)
 	}
 	return nil
 }

@@ -281,7 +281,7 @@ func (s *Store) enforceMetricRetentionTx(ctx context.Context, metricName string,
 	if retentionDays == 0 {
 		return s.deleteRollupsForMetricTx(ctx, metricName, tx)
 	}
-	metricRetention := time.Duration(retentionDays) * 24 * time.Hour
+	metricRetention := retentionDuration(retentionDays)
 	policy := s.cfg.RollupPolicy.withMetricRetention(metricRetention)
 	retained := make(map[time.Duration]time.Duration, len(policy.Tiers))
 	for _, tier := range policy.Tiers {
@@ -293,6 +293,9 @@ func (s *Store) enforceMetricRetentionTx(ctx context.Context, metricName string,
 			if err := s.deleteRollupTierTx(ctx, metricName, tier.Interval, tx); err != nil {
 				return err
 			}
+			continue
+		}
+		if retention == unlimitedRetention {
 			continue
 		}
 		if err := s.deleteRollupsBeforeTx(ctx, metricName, tier.Interval, now.Add(-retention).UnixMilli(), tx); err != nil {

@@ -94,3 +94,7 @@ Go 全量与 metric/jsonrpc race、格式往返/权重/P95 对照测试、编解
 ## 1.5.9 首装版本跟进
 
 前端固定为 `ab4e2dee0d533db9c551f0ac809e38bf93da2283`，首装 Agent 更新为 1.5.18，包含 HOST_PROC/内存缓存统计的兼容补丁。主控性能实现与 1.5.8 一致。
+
+## Long-term ping history
+
+Ping latency and loss history defaults to permanent retention (`retention_days: -1`). Existing enabled ping policies migrate once; later administrator changes are preserved. Zero still disables and clears a metric. Fine resolutions retain their bounded windows, while daily aggregates remain indefinitely. Client `last_seen_at` records server-observed contact independently of metric retention, and startup can recover missing timestamps from retained observations. `public:getPingHistoryRange` returns observation bounds for a visible node.
