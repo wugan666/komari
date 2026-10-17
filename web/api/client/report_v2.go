@@ -3,6 +3,7 @@ package client
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"errors"
 	logger "github.com/komari-monitor/komari/utils/log"
@@ -16,6 +17,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/komari-monitor/komari/database/clients"
 	"github.com/komari-monitor/komari/database/tasks"
+	"github.com/komari-monitor/komari/internal/returnroute"
 	v2 "github.com/komari-monitor/komari/protocol/v2"
 	"github.com/komari-monitor/komari/utils/notifier"
 	agent_runtime "github.com/komari-monitor/komari/web/agent"
@@ -104,7 +106,24 @@ func handleV2RPC(uuid string, req v2.Request, allowWait bool) v2.Response {
 		if err := tasks.SaveTaskResult(params.TaskID, uuid, params.Result, params.ExitCode, finishedAt); err != nil {
 			return v2.Error(req.ID, -32000, "failed to save task result", err.Error())
 		}
+		if err := returnroute.Complete(uuid, params.TaskID, params.Result, params.ExitCode); err != nil {
+			return v2.Error(req.ID, -32000, "failed to store return-route result", nil)
+		}
 		return v2.Success(req.ID, gin.H{"status": "success"})
+	case v2.MethodAgentReturnRouteReport:
+		var params struct {
+			Report returnroute.Report `json:"report"`
+		}
+		if err := bindV2Params(req.Params, &params); err != nil {
+			return v2.Error(req.ID, -32602, "invalid return-route report", nil)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		record, err := returnroute.Receive(ctx, uuid, params.Report)
+		if err != nil {
+			return v2.Error(req.ID, -32000, "return-route report rejected; check the fixed targets, schema and two-minute cooldown", nil)
+		}
+		return v2.Success(req.ID, gin.H{"status": "success", "uuid": uuid, "id": record.ID, "city": record.City, "state": record.State})
 	case v2.MethodAgentPull:
 		var params v2.PullParams
 		if err := bindV2Params(req.Params, &params); err != nil {

@@ -101,7 +101,8 @@ jobs:
           prerelease=false
           latest=true
           if [ "$CHANNEL" = snapshot ]; then prerelease=true; latest=false; fi
-          gh release create "$VERSION" artifacts/komari-* \
+          zip -q -r "$RUNNER_TEMP/komari-third-party-notices.zip" LICENSE NOTICE third_party
+          gh release create "$VERSION" artifacts/komari-* "$RUNNER_TEMP/komari-third-party-notices.zip" \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --draft --prerelease="$prerelease" --latest=false \
             --title "$VERSION" \

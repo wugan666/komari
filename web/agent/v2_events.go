@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -66,6 +67,10 @@ func EnqueueV2Event(uuid, method string, params any) v2.Event {
 		ttl = v2FileEventTTL
 	} else if method == v2.MethodAgentStartupConfig {
 		ttl = 20 * time.Second
+	} else if method == v2.MethodAgentExec {
+		if command, ok := params.(v2.ExecParams); ok && strings.HasPrefix(command.TaskID, "rr-") {
+			ttl = 30 * time.Second
+		}
 	}
 	event := v2.Event{
 		ID:        newV2EventID(),
