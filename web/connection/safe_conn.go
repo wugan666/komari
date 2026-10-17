@@ -154,6 +154,22 @@ func (sc *SafeConn) WriteMessage(messageType int, data []byte) error {
 	return sc.writeFrame(messageType, data)
 }
 
+// WriteControl can run alongside data writes. Keep hooks and network I/O
+// outside the state lock so Close can still interrupt a blocked connection.
+func (sc *SafeConn) WriteControl(messageType int, data []byte, deadline time.Time) error {
+	sc.mu.Lock()
+	interceptor, info := sc.interceptor, sc.info
+	sc.mu.Unlock()
+	if interceptor != nil && info != nil {
+		newType, newData, drop := interceptor.OnSend(info, messageType, data)
+		if drop {
+			return nil
+		}
+		messageType, data = newType, newData
+	}
+	return sc.conn.WriteControl(messageType, data, deadline)
+}
+
 // WriteJSON encodes v then sends it as one text frame through the wsSend
 // hook chain.
 func (sc *SafeConn) WriteJSON(v interface{}) error {
@@ -198,6 +214,10 @@ func (sc *SafeConn) ReadJSON(v interface{}) error {
 
 func (sc *SafeConn) SetReadDeadline(t time.Time) error {
 	return sc.conn.SetReadDeadline(t)
+}
+
+func (sc *SafeConn) SetPingHandler(h func(string) error) {
+	sc.conn.SetPingHandler(h)
 }
 
 // SetReadLimit must be called before the read loop. Bound the decompressed

@@ -26,8 +26,10 @@ type reportTrafficValues struct {
 	timestamp   time.Time
 	hasUp       bool
 	totalUp     int64
+	totalUpAt   time.Time
 	hasDown     bool
 	totalDown   int64
+	totalDownAt time.Time
 }
 
 var reportTrafficStates sync.Map
@@ -41,6 +43,8 @@ const (
 	reportBatchQueueSize    = 512
 	pingBatchMaxRecords     = 512
 	reportBatchWriteTimeout = 10 * time.Second
+	// Longer gaps have no reliable per-bucket traffic attribution.
+	maxTrafficReportGap = 15 * time.Minute
 )
 
 var (
@@ -409,16 +413,18 @@ func writeReportBatch(ctx context.Context, reports []v2.Report) ([]v2.Report, er
 			state.mu.Unlock()
 		}
 		if !values.initialized {
-			totalUp, hasUp, err := latestReportCounter(ctx, s, MetricNetTotalUp, report.UUID, report.UpdatedAt)
+			totalUp, hasUp, err := s.LatestBefore(ctx, MetricNetTotalUp, report.UUID, report.UpdatedAt)
 			if err != nil {
 				return nil, fmt.Errorf("restore previous upload counter for %s: %w", report.UUID, err)
 			}
-			totalDown, hasDown, err := latestReportCounter(ctx, s, MetricNetTotalDown, report.UUID, report.UpdatedAt)
+			totalDown, hasDown, err := s.LatestBefore(ctx, MetricNetTotalDown, report.UUID, report.UpdatedAt)
 			if err != nil {
 				return nil, fmt.Errorf("restore previous download counter for %s: %w", report.UUID, err)
 			}
-			values.totalUp, values.hasUp = totalUp, hasUp
-			values.totalDown, values.hasDown = totalDown, hasDown
+			values.totalUp, values.hasUp = int64(totalUp.Value), hasUp
+			values.totalUpAt = totalUp.Timestamp
+			values.totalDown, values.hasDown = int64(totalDown.Value), hasDown
+			values.totalDownAt = totalDown.Timestamp
 			values.initialized = true
 			// Cache only the restored baseline, even if this attempt fails before
 			// acceptance. New report counters are committed below after ingestion.
@@ -431,19 +437,21 @@ func writeReportBatch(ctx context.Context, reports []v2.Report) ([]v2.Report, er
 			report.UpdatedAt = values.timestamp.Add(time.Millisecond)
 		}
 		trafficUp := int64(0)
-		if values.hasUp {
+		if values.hasUp && !values.totalUpAt.IsZero() && report.UpdatedAt.Sub(values.totalUpAt) <= maxTrafficReportGap {
 			trafficUp = TrafficCounterDelta(report.Network.TotalUp, values.totalUp)
 		}
 		trafficDown := int64(0)
-		if values.hasDown {
+		if values.hasDown && !values.totalDownAt.IsZero() && report.UpdatedAt.Sub(values.totalDownAt) <= maxTrafficReportGap {
 			trafficDown = TrafficCounterDelta(report.Network.TotalDown, values.totalDown)
 		}
 		points = append(points, reportMetricPoints(report, trafficUp, trafficDown)...)
 		values.timestamp = report.UpdatedAt
 		values.hasUp = true
 		values.totalUp = report.Network.TotalUp
+		values.totalUpAt = report.UpdatedAt
 		values.hasDown = true
 		values.totalDown = report.Network.TotalDown
+		values.totalDownAt = report.UpdatedAt
 		pendingStates[state] = values
 		prepared[i] = report
 	}
