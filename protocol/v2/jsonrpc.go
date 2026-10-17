@@ -22,6 +22,7 @@ const (
 	MethodAgentStartupConfig       = "agent.startupConfig"
 	MethodAgentStartupConfigResult = "agent.startupConfig.result"
 	MethodAgentSwitchVersion       = "agent.switchVersion"
+	MethodAgentReturnRouteReport   = "agent.returnRouteReport"
 )
 
 type Request struct {

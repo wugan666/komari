@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -68,11 +69,13 @@ func DispatchPing(uuid string, params v2.PingParams) bool {
 	return true
 }
 
+// IsAgentOnline reports a live WebSocket or unexpired HTTP presence. The
+// v2 marker alone is sticky and would report long-gone POST agents online.
 func IsAgentOnline(uuid string) bool {
 	if GetConnectedClients()[uuid] != nil {
 		return true
 	}
-	return IsV2Client(uuid)
+	return hasLivePresence(uuid)
 }
 
 func EnqueueV2Event(uuid, method string, params any) v2.Event {
@@ -84,6 +87,10 @@ func EnqueueV2Event(uuid, method string, params any) v2.Event {
 		ttl = v2FileEventTTL
 	} else if method == v2.MethodAgentStartupConfig {
 		ttl = 20 * time.Second
+	} else if method == v2.MethodAgentExec {
+		if command, ok := params.(v2.ExecParams); ok && strings.HasPrefix(command.TaskID, "rr-") {
+			ttl = 30 * time.Second
+		}
 	}
 	event := v2.Event{
 		ID:        newV2EventID(),

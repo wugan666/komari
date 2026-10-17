@@ -25,3 +25,19 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+
+Return-route classification
+
+Adapted and translated to Go from yyy622hhh/komari-theme-transit
+(ee9f31c5ff104e033ded858171ce0b63c672e878), whose route rules derive from
+oneclickvirt/backtrace. The implementation adds fixed-target collection,
+validation, persistence and Komari authorization boundaries.
+
+Transit: Copyright (c) 2026 yyy622hhh; Copyright (c) 2025 Tony Liu.
+MIT terms: third_party/transit-LICENSE.
+Backtrace: licensed under Apache-2.0; terms: third_party/backtrace-LICENSE.
+
+Archive/history presentation also draws on the design of
+Chen017/komari-plugin-ipqa-alert-report (MIT), without importing its
+notification, IP-quality scanner, or remote archive synchronization code.
