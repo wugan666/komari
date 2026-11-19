@@ -5,12 +5,14 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
-	logger "github.com/komari-monitor/komari/utils/log"
+	"errors"
 	"io"
 	"net"
 	"net/http"
 	"strings"
 	"time"
+
+	logger "github.com/komari-monitor/komari/utils/log"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -25,17 +27,30 @@ import (
 	"github.com/komari-monitor/komari/web/filemanager"
 )
 
+// maxAgentRequestBytes caps one agent request, before and after gzip.
+const maxAgentRequestBytes = 16 << 20
+
+var errAgentRequestTooLarge = errors.New("agent request exceeds 16 MiB")
+
 func readMaybeCompressedBody(r *http.Request) ([]byte, error) {
 	defer r.Body.Close()
+	var src io.Reader = io.LimitReader(r.Body, maxAgentRequestBytes+1)
 	if strings.EqualFold(r.Header.Get("Content-Encoding"), "gzip") {
-		zr, err := gzip.NewReader(r.Body)
+		zr, err := gzip.NewReader(src)
 		if err != nil {
 			return nil, err
 		}
 		defer zr.Close()
-		return io.ReadAll(zr)
+		src = zr
 	}
-	return io.ReadAll(r.Body)
+	body, err := io.ReadAll(io.LimitReader(src, maxAgentRequestBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(body) > maxAgentRequestBytes {
+		return nil, errAgentRequestTooLarge
+	}
+	return body, nil
 }
 
 func bindV2Params[T any](raw any, target *T) error {
@@ -189,6 +204,7 @@ func WebSocketV2RPC(c *gin.Context) {
 		return
 	}
 	defer conn.Close()
+	conn.SetReadLimit(maxAgentRequestBytes)
 	credentialsValid := api.NewCredentialValidator(c)
 
 	uuid, ok := clientUUIDFromContext(c)

@@ -725,6 +725,9 @@ func fsMode(vm *moejs.Runtime, value moejs.Value, fallback os.FileMode) os.FileM
 		if err == nil {
 			return os.FileMode(mode)
 		}
+		// A string option to writeFile may be an encoding such as "utf8";
+		// never coerce it into permission bits 000.
+		return fallback
 	}
 	return os.FileMode(native.Int(vm, value))
 }

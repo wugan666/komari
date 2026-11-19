@@ -99,6 +99,13 @@ func SetPresence(uuid string, connectionID int64, present bool) {
 	}
 }
 
+func hasLivePresence(uuid string) bool {
+	mu.RLock()
+	defer mu.RUnlock()
+	cur, ok := presenceOnly[uuid]
+	return ok && cur.expire.After(time.Now())
+}
+
 // GetAllOnlineUUIDs returns a de-duplicated list of online UUIDs from both WebSocket and non-WebSocket agents.
 func GetAllOnlineUUIDs() []string {
 	mu.RLock()
