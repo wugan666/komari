@@ -1,17 +1,17 @@
 package api
 
 import (
-	"bytes"
-	"encoding/json"
-	"io"
+	"database/sql"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/komari-monitor/komari/database/accounts"
+	"github.com/komari-monitor/komari/database/clients"
 	"github.com/komari-monitor/komari/internal/config"
 	"github.com/komari-monitor/komari/pkg/rpc"
+	"gorm.io/gorm"
 )
 
 const (
@@ -68,8 +68,12 @@ func RequireRole(allowedRoles ...string) gin.HandlerFunc {
 
 // GetRole 获取当前请求的角色
 func GetRole(c *gin.Context) string {
-	if role := c.GetString("role"); role != "" {
-		return role
+	role, exists := c.Get("role")
+	if !exists {
+		return RoleGuest
+	}
+	if s, ok := role.(string); ok {
+		return s
 	}
 	return RoleGuest
 }
@@ -84,7 +88,6 @@ var publicPaths = []string{
 	"/api/oauth",
 	"/api/oauth_callback",
 	"/api/version",
-	"/api/recent",
 	"/api/admin",    // 由 RequireRole 处理
 	"/api/clients/", // 由 RequireRole 处理
 	"/api/preview/", // 预览令牌校验后放行
@@ -144,16 +147,23 @@ func hasTempAccess(c *gin.Context) bool {
 	if err != nil {
 		return false
 	}
-	allowKey, err := config.GetAs[string]("tempory_share_token", "")
-	if err != nil || allowKey == "" || tempKey != allowKey {
+	expireAt, err := config.GetAs[int64]("tempory_share_token_expire_at", 0)
+	if err != nil {
 		return false
 	}
-	expireAt, err := config.GetAs[int64]("tempory_share_token_expire_at", 0)
-	return err == nil && expireAt >= time.Now().Unix()
+	allowKey, err := config.GetAs[string]("tempory_share_token", "")
+	if err != nil {
+		return false
+	}
+	if allowKey == "" || tempKey != allowKey {
+		return false
+	}
+	return expireAt >= time.Now().Unix()
 }
 
 func extractClientToken(c *gin.Context) string {
-	if token := c.Query("token"); token != "" {
+	token := c.Query("token")
+	if token != "" {
 		return token
 	}
 	// rpc2 约定:agent 经 ?Authorization=<token> 传入 client token。
@@ -161,26 +171,34 @@ func extractClientToken(c *gin.Context) string {
 		return token
 	}
 
-	if c.Request.Method != http.MethodGet {
-		bodyBytes, err := io.ReadAll(c.Request.Body)
-		if err != nil {
-			return ""
-		}
-		c.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-
-		var body struct {
-			Token string `json:"token"`
-		}
-		if json.Unmarshal(bodyBytes, &body) == nil {
-			return body.Token
-		}
-	}
+	// The retired agent protocol accepted a body token. Current agents use
+	// query credentials; inspecting arbitrary request bodies here bypasses
+	// endpoint size limits and buffers file transfers before authorization.
 	return ""
+}
+
+func checkTokenAndGetUUID(token string) (string, error) {
+	uuid, err := clients.GetClientUUIDByToken(token)
+
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err == gorm.ErrRecordNotFound {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return uuid, nil
 }
 
 func isApiKeyValid(apiKey string) bool {
 	apiKeyConfig, err := config.GetAs[string](config.ApiKeyKey, "")
-	if err != nil || len(apiKeyConfig) < 12 {
+	if err != nil {
+		return false
+	}
+
+	if apiKeyConfig == "" || len(apiKeyConfig) < 12 {
 		return false
 	}
 	return apiKey == "Bearer "+apiKeyConfig

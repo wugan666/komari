@@ -1,6 +1,7 @@
 package jsonrpc
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,9 @@ import (
 	"github.com/komari-monitor/komari/pkg/rpc"
 	"github.com/komari-monitor/komari/web/api"
 )
+
+const maxRPCRequestBytes = 16 << 20
+const maxRPCBatchRequests = 100
 
 // OnRpcRequest 是 /api/rpc2 的统一入口：GET 升级为 WebSocket，POST 处理单条/批量 JSON-RPC。
 func OnRpcRequest(c *gin.Context) {
@@ -95,8 +99,10 @@ func serveWebSocket(c *gin.Context) {
 		return
 	}
 	defer conn.Close()
+	conn.SetReadLimit(maxRPCRequestBytes)
 
 	meta := buildContextMeta(c)
+	credentialsValid := api.NewCredentialValidator(c)
 	for {
 		var req rpc.JsonRpcRequest
 		if err := conn.ReadJSON(&req); err != nil {
@@ -113,14 +119,27 @@ func serveWebSocket(c *gin.Context) {
 			conn.WriteJSON(jerr.ResponseWithID(req.ID))
 			continue
 		}
+		if !credentialsValid() {
+			conn.WriteJSON(rpc.ErrorResponse(req.ID, rpc.PermissionDenied, "Credentials expired or revoked", nil))
+			return
+		}
+		meta.TempShareValid = hasTempShareAccess(c)
 		// 同步写：SafeConn 内部有锁，串行写避免响应乱序与并发竞态。
-		conn.WriteJSON(dispatchWithSensitive(context.Background(), c, meta, &req))
+		if err := conn.WriteJSON(dispatchWithSensitive(c.Request.Context(), c, meta, &req)); err != nil {
+			return
+		}
 	}
 }
 
 func servePost(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRPCRequestBytes)
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			c.JSON(http.StatusRequestEntityTooLarge, rpc.ErrorResponse(nil, rpc.InvalidRequest, "RPC request exceeds 16 MiB", nil))
+			return
+		}
 		c.JSON(http.StatusBadRequest, rpc.ErrorResponse(nil, rpc.ParseError, "read body error", err.Error()))
 		return
 	}
@@ -129,17 +148,46 @@ func servePost(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, jerr.Response())
 		return
 	}
-	meta := buildContextMeta(c)
-
-	responses := make([]*rpc.JsonRpcResponse, 0, len(requests))
-	for _, rreq := range requests {
-		responses = append(responses, dispatchWithSensitive(c.Request.Context(), c, meta, rreq))
+	if len(requests) > maxRPCBatchRequests {
+		c.JSON(http.StatusRequestEntityTooLarge, rpc.ErrorResponse(nil, rpc.InvalidRequest, "RPC batch exceeds 100 requests", nil))
+		return
 	}
-	// 单条直接对象，批量数组（符合 JSON-RPC 2.0）。
-	if len(responses) == 1 {
-		c.JSON(http.StatusOK, responses[0])
-	} else {
-		c.JSON(http.StatusOK, responses)
+	meta := buildContextMeta(c)
+	credentialsValid := api.NewCredentialValidator(c)
+
+	batch := bytes.HasPrefix(bytes.TrimSpace(body), []byte("["))
+	c.Header("Content-Type", "application/json; charset=utf-8")
+	c.Status(http.StatusOK)
+	if batch {
+		if _, err := c.Writer.Write([]byte("[")); err != nil {
+			return
+		}
+	}
+	encoder := json.NewEncoder(c.Writer)
+	for i, rreq := range requests {
+		if c.Request.Context().Err() != nil {
+			return
+		}
+		if i > 0 {
+			if _, err := c.Writer.Write([]byte(",")); err != nil {
+				return
+			}
+		}
+		// Encode each response before dispatching the next request. Keeping a
+		// batch's entire history payloads alive can multiply memory by 100.
+		var response *rpc.JsonRpcResponse
+		if !credentialsValid() {
+			response = rpc.ErrorResponse(rreq.ID, rpc.PermissionDenied, "Credentials expired or revoked", nil)
+		} else {
+			meta.TempShareValid = hasTempShareAccess(c)
+			response = dispatchWithSensitive(c.Request.Context(), c, meta, rreq)
+		}
+		if err := encoder.Encode(response); err != nil {
+			return
+		}
+	}
+	if batch {
+		_, _ = c.Writer.Write([]byte("]"))
 	}
 }
 
@@ -174,7 +222,9 @@ func buildContextMeta(c *gin.Context) *rpc.ContextMeta {
 		meta.ClientUUID = p.ClientUUID
 		// 尝试提取 client token(用于某些 handler 需要原始 token 的场景)。
 		// 优先查询参数 ?Authorization=<token>，再尝试 Bearer header。
-		if token := c.Query("Authorization"); token != "" {
+		if token := c.Query("token"); token != "" {
+			meta.ClientToken = token
+		} else if token := c.Query("Authorization"); token != "" {
 			meta.ClientToken = token
 		} else if auth := c.GetHeader("Authorization"); auth != "" && len(auth) > len("Bearer ") {
 			meta.ClientToken = auth[len("Bearer "):]

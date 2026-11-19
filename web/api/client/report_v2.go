@@ -170,6 +170,7 @@ func WebSocketV2RPC(c *gin.Context) {
 		return
 	}
 	defer conn.Close()
+	credentialsValid := api.NewCredentialValidator(c)
 
 	uuid, ok := clientUUIDFromContext(c)
 	if !ok {
@@ -207,6 +208,10 @@ func WebSocketV2RPC(c *gin.Context) {
 		if err := json.Unmarshal(message, &req); err != nil {
 			conn.WriteJSON(v2.Error(nil, -32700, "parse error", err.Error()))
 			continue
+		}
+		if !credentialsValid() {
+			conn.WriteJSON(v2.Error(req.ID, -32001, "credentials expired or revoked", nil))
+			return
 		}
 		resp := handleV2RPC(uuid, req, false, false)
 		if req.ID != nil {
