@@ -3,9 +3,11 @@ package clients
 import (
 	"encoding/json"
 	"fmt"
-	logger "github.com/komari-monitor/komari/utils/log"
 	"math"
 	"time"
+
+	logger "github.com/komari-monitor/komari/utils/log"
+	"gorm.io/gorm"
 
 	"github.com/komari-monitor/komari/database/dbcore"
 	"github.com/komari-monitor/komari/database/models"
@@ -218,4 +220,18 @@ func SaveClient(updates map[string]interface{}) error {
 	updates["updated_at"] = time.Now().UTC()
 
 	return db.Model(&models.Client{}).Where("uuid = ?", clientUUID).Updates(updates).Error
+}
+
+// RecordLastSeen stores server-observed contact independently of expiring metrics.
+// UpdateColumn avoids treating a heartbeat as a configuration edit. The guard
+// prevents concurrent/late writes from moving the timestamp backwards.
+func RecordLastSeen(uuid string, at time.Time) error {
+	return recordLastSeen(dbcore.GetDBInstance(), uuid, at)
+}
+
+func recordLastSeen(db *gorm.DB, uuid string, at time.Time) error {
+	if uuid == "" || at.IsZero() {
+		return fmt.Errorf("invalid last-seen timestamp")
+	}
+	return db.Model(&models.Client{}).Where("uuid = ? AND (last_seen_at IS NULL OR last_seen_at < ?)", uuid, at.UTC()).UpdateColumn("last_seen_at", at.UTC()).Error
 }

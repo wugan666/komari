@@ -40,6 +40,7 @@ type Client struct {
 	Hidden           bool       `json:"hidden" gorm:"default:false"`
 	TrafficLimit     int64      `json:"traffic_limit" gorm:"type:bigint"`
 	TrafficLimitType string     `json:"traffic_limit_type" gorm:"type:varchar(10);default:'max'"` // 流量阈值类型：sum max min up down
+	LastSeenAt       *time.Time `json:"last_seen_at" gorm:"type:timestamp"`
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
 }
