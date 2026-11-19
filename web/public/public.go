@@ -127,6 +127,7 @@ func StaticRestricted(r *gin.RouterGroup, noRoute func(handlers ...gin.HandlerFu
 }
 
 func static(r *gin.RouterGroup, noRoute func(handlers ...gin.HandlerFunc), forceDefaultTheme bool) {
+	registerLegacyWorkerKillSwitch(r)
 	// 初始化嵌入式文件系统，指向 defaultTheme 根目录。
 	defaultThemeFS, err := fs.Sub(PublicFS, "defaultTheme")
 	if err != nil {
