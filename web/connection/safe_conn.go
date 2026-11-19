@@ -52,6 +52,9 @@ func Interceptor() FrameInterceptor { return frameInterceptor }
 // forever.
 var errTooManyDroppedFrames = errors.New("too many frames dropped by plugin hooks")
 
+// writeTimeout bounds one data-frame write.
+const writeTimeout = 10 * time.Second
+
 // maxConsecutiveDroppedFrames bounds the internal re-read loop.
 const maxConsecutiveDroppedFrames = 16
 
@@ -114,14 +117,19 @@ func (sc *SafeConn) readFrame() (int, []byte, error) {
 func (sc *SafeConn) writeFrame(messageType int, data []byte) error {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
-	if sc.interceptor == nil || sc.info == nil {
-		return sc.conn.WriteMessage(messageType, data)
+	if sc.interceptor != nil && sc.info != nil {
+		newType, newData, drop := sc.interceptor.OnSend(sc.info, messageType, data)
+		if drop {
+			return nil
+		}
+		messageType, data = newType, newData
 	}
-	newType, newData, drop := sc.interceptor.OnSend(sc.info, messageType, data)
-	if drop {
-		return nil
+	// A half-dead peer must not hold the write lock indefinitely: ping
+	// dispatch walks clients sequentially and would stall behind it.
+	if err := sc.conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+		return err
 	}
-	return sc.conn.WriteMessage(newType, newData)
+	return sc.conn.WriteMessage(messageType, data)
 }
 
 func (sc *SafeConn) WriteMessage(messageType int, data []byte) error {
