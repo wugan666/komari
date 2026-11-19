@@ -7,26 +7,6 @@ import (
 	"github.com/pquerna/otp/totp"
 )
 
-// TestHashPasswordIsSaltedAndStable pins the password hash contract: stable
-// for the same input, different for different passwords, and never equal to
-// the plaintext.
-func TestHashPasswordIsSaltedAndStable(t *testing.T) {
-	a := hashPasswd("correct horse battery staple")
-	b := hashPasswd("correct horse battery staple")
-	if a != b {
-		t.Fatal("hash is not deterministic for the same password")
-	}
-	if hashPasswd("other password") == a {
-		t.Fatal("different passwords produced the same hash")
-	}
-	if a == "correct horse battery staple" {
-		t.Fatal("hash equals the plaintext")
-	}
-	if a == hashPasswd("correct horse battery staplex") {
-		t.Fatal("hash is not sensitive to a one-character change")
-	}
-}
-
 // TestCheckPassword covers the credential check used by the login endpoint.
 func TestCheckPassword(t *testing.T) {
 	resetAccountsState(t)

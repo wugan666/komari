@@ -183,6 +183,11 @@ func (sc *SafeConn) SetPingHandler(h func(string) error) {
 	sc.conn.SetPingHandler(h)
 }
 
+// SetReadLimit bounds a single inbound message; call it before the read loop.
+func (sc *SafeConn) SetReadLimit(limit int64) {
+	sc.conn.SetReadLimit(limit)
+}
+
 func (sc *SafeConn) GetConn() *websocket.Conn {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()

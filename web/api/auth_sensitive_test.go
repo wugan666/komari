@@ -117,6 +117,7 @@ func TestGet2FACodeSources(t *testing.T) {
 			mutate: func(c *gin.Context) {
 				c.Request.Method = http.MethodPost
 				c.Request.Body = io.NopCloser(strings.NewReader(`{"otp":"from-body"}`))
+				c.Request.Header.Set("Content-Type", "application/json")
 			},
 			want: "from-body",
 		},
@@ -137,7 +138,7 @@ func TestGet2FACodeSources(t *testing.T) {
 			c, _ := gin.CreateTestContext(recorder)
 			c.Request = httptest.NewRequest(http.MethodGet, "/api/admin/task/exec", nil)
 			tt.mutate(c)
-			if got := get2FACode(c); got != tt.want {
+			if got, _ := get2FACode(c); got != tt.want {
 				t.Fatalf("get2FACode = %q, want %q", got, tt.want)
 			}
 		})

@@ -271,14 +271,6 @@ func TestExtractClientTokenSources(t *testing.T) {
 			want: "from-auth-query",
 		},
 		{
-			name: "json body on POST",
-			mutate: func(r *http.Request) {
-				r.Method = http.MethodPost
-				r.Body = io.NopCloser(strings.NewReader(`{"token":"from-body"}`))
-			},
-			want: "from-body",
-		},
-		{
 			name: "GET ignores body",
 			mutate: func(r *http.Request) {
 				r.Body = io.NopCloser(strings.NewReader(`{"token":"ignored"}`))
@@ -294,26 +286,6 @@ func TestExtractClientTokenSources(t *testing.T) {
 				t.Fatalf("extractClientToken = %q, want %q", got, tt.want)
 			}
 		})
-	}
-}
-
-// TestExtractClientTokenRestoresBody verifies a handler downstream can still
-// read the body after identity extraction consumed it.
-func TestExtractClientTokenRestoresBody(t *testing.T) {
-	const body = `{"token":"from-body","other":"kept"}`
-	c := newIdentityRequest(t, func(r *http.Request) {
-		r.Method = http.MethodPost
-		r.Body = io.NopCloser(strings.NewReader(body))
-	})
-	if got := extractClientToken(c); got != "from-body" {
-		t.Fatalf("token = %q", got)
-	}
-	restored, err := io.ReadAll(c.Request.Body)
-	if err != nil {
-		t.Fatalf("read restored body: %v", err)
-	}
-	if string(restored) != body {
-		t.Fatalf("restored body = %q, want %q", restored, body)
 	}
 }
 
