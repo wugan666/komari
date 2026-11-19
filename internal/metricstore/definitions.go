@@ -95,6 +95,11 @@ func createMetricDefinitionsWithDefaultRetention(ctx context.Context, s *metric.
 				continue
 			}
 			def.RetentionDays = existing.RetentionDays
+			// Fork releases before 3.0 stored -1 for "keep forever". Map it to
+			// the 100-year daily tier, the longest retention upstream supports.
+			if def.RetentionDays < 0 {
+				def.RetentionDays = defaultRollupDayRetentionDays
+			}
 		}
 		if err := s.UpsertMetric(ctx, def); err != nil {
 			return fmt.Errorf("failed to create metric %s: %w", def.Name, err)
