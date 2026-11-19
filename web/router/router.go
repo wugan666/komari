@@ -44,6 +44,8 @@ func registerPublicRoutes(r *gin.Engine) {
 	r.GET("/api/oauth_callback", public_api.OAuthCallback)
 	// 插件公开页面（visibility=public 的 iframe 页面），无需鉴权。
 	r.GET("/api/plugin/:short/*filepath", public_api.ServePluginFile)
+	// Agent 安装包由控制器自身提供，新装与校验无需 GitHub。
+	r.GET("/download/agent/:file", public_api.ServeAgentDist)
 	// 短期文件预览令牌公开下载入口，供 Office 在线预览等服务端抓取。
 	r.GET("/api/preview/client/:uuid/file/download", filemanager.PreviewDownload)
 	r.HEAD("/api/preview/client/:uuid/file/download", filemanager.PreviewDownload)
