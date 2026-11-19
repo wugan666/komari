@@ -76,7 +76,7 @@ type publicMetricSeries struct {
 	MaxPoints           int                 `json:"max_points,omitempty"`
 	IntervalSeconds     float64             `json:"interval_seconds,omitempty"`
 	Count               int                 `json:"count"`
-	Points              []publicMetricPoint `json:"points"`
+	Points              compactMetricPoints `json:"points"`
 }
 
 type publicPingMetricStatsParams struct {
