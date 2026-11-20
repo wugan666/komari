@@ -30,7 +30,17 @@ func init() {
 		Returns: "{ queued: true }",
 		Example: map[string]any{"uuid": "agent-uuid", "version": "1.2.*"},
 	})
+	RegisterWithGroupAndMeta("getAgentConflicts", rpc.RoleAdmin, adminGetAgentConflicts, &rpc.MethodMeta{
+		Name:        "admin:getAgentConflicts",
+		Summary:     "List nodes whose token is used by more than one running agent",
+		Description: "A node is listed while different agent processes keep replacing each other's connection.",
+		Returns:     "{ [uuid]: { takeovers, last_at, last_ip } }",
+	})
 	rpc.MarkSensitive("admin:getAgentStartupConfig")
+}
+
+func adminGetAgentConflicts(context.Context, *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {
+	return agent_runtime.ConnectionConflicts(), nil
 }
 
 func adminGetAgentStartupConfig(ctx context.Context, req *rpc.JsonRpcRequest) (any, *rpc.JsonRpcError) {

@@ -213,6 +213,9 @@ func WebSocketV2RPC(c *gin.Context) {
 		return
 	}
 	if oldConn, exists := agent_runtime.GetConnectedClients()[uuid]; exists {
+		if agent_runtime.RecordTakeover(uuid, c.ClientIP()) {
+			logger.Warnf("client-api", "Client %s keeps replacing its own live connection (latest from %s); more than one agent is probably running with this token", uuid, c.ClientIP())
+		}
 		go oldConn.Close()
 	}
 	agent_runtime.SetConnectedClients(uuid, conn)

@@ -48,11 +48,8 @@ func ServeAgentDist(c *gin.Context) {
 	default:
 		c.Header("Content-Type", "application/octet-stream")
 	}
-	// Binaries are immutable per release; the small text files must stay fresh.
-	if filepath.Ext(name) == ".sha256" || name == "VERSION" || name == "checksums.txt" || name == "install.sh" || name == "install.ps1" {
-		c.Header("Cache-Control", "no-cache")
-	} else {
-		c.Header("Cache-Control", "public, max-age=3600")
-	}
+	// Every file changes with a release and a stale binary would fail its
+	// checksum, so caches must revalidate.
+	c.Header("Cache-Control", "no-cache")
 	c.File(path)
 }
